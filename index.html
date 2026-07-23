@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>🚧 מסלול המכשולים הבירוקרטי - MASTER CONTROL</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <script src="js/gameData.js?v=1"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;900&display=swap');
+    :root { --blue: #2563eb; --gold: #ffc233; --bg: #140d08; --card: #2b1a10; --red: #d62828; --green: #2a9d3f; --yellow: #ffc233; --ink: #0a0602; }
+    html, body { height: 100%; margin: 0; color: #fdf3e0; overflow: hidden; font-family: 'Rubik', system-ui, sans-serif; }
+    body {
+      background-color: var(--bg);
+      background-image: repeating-conic-gradient(from 0deg at 50% 20%, #2a1608 0deg 9deg, #140d08 9deg 18deg);
+    }
+    h1, h2, h3 { font-weight: 900; letter-spacing: 0.01em; text-wrap: balance; }
+    .comic-title { -webkit-text-stroke: 2px var(--ink); text-stroke: 2px var(--ink); color: var(--gold); text-shadow: 3px 3px 0 var(--ink); }
+    .main-layout { display: grid; grid-template-columns: 350px 1fr; height: 100vh; gap: 15px; padding: 15px; box-sizing: border-box; }
+    .board { display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(5, 1fr); gap: 6px; height: 100%; }
+    .cell { border-radius: 8px; border: 3px solid var(--ink); box-shadow: 2px 2px 0 rgba(0,0,0,0.6); background-size: cover; background-position: center; position: relative; background-color: var(--card); }
+    .cell-title { position: absolute; bottom: 0; width: 100%; background: var(--gold); color: var(--ink); font-weight: 900; font-size: 0.62rem; text-align: center; padding: 3px 2px; border-top: 2px solid var(--ink); box-sizing: border-box; }
+    .modal { position: fixed; inset: 0; background: rgba(10,6,2,0.97); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: var(--card); width: 95vw; height: 92vh; border-radius: 22px; border: 5px solid var(--ink); box-shadow: 0 0 0 3px var(--gold); display: grid; grid-template-columns: 180px 1.2fr 1.5fr; overflow: hidden; }
+    .metro-line { background: rgba(0,0,0,0.35); display: flex; flex-direction: column; justify-content: space-around; padding: 40px 15px; }
+    .metro-station { text-align: right; color: #a68a6d; font-weight: 700; font-size: 0.9rem; }
+    .metro-station.active { color: var(--gold); text-shadow: 0 0 10px var(--gold); }
+    .pawn { width: 44px; height: 44px; border-radius: 50%; position: absolute; z-index: 100; transition: 0.8s; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 5px 15px black; overflow: hidden; }
+    .opt-btn { padding: 18px; border-radius: 12px; border: 3px solid var(--ink); margin: 6px; font-size: 1.3rem; font-weight: 500; text-align: right; background: rgba(255,255,255,0.06); }
+    .correct { background: var(--green) !important; color: black; font-weight: bold; }
+    .wrong { background: var(--red) !important; color: white; }
+    .timer-bar { height: 10px; background: var(--gold); width: 100%; position: absolute; top: 0; z-index: 5; }
+    .sidebar { background: #1c1108; border: 3px solid var(--ink); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; }
+    .wheel-box { position: relative; width: 320px; height: 320px; margin: 20px auto; }
+    #wheelSVG { width: 100%; height: 100%; transition: transform 3s cubic-bezier(0.2, 0, 0.2, 1); }
+    .wheel-arrow { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 40px solid white; z-index: 10; filter: drop-shadow(0 4px 4px black); }
+    @keyframes turnPulse { 0%, 100% { box-shadow: 0 0 0 2px var(--gold); } 50% { box-shadow: 0 0 18px 4px var(--gold); } }
+  </style>
+</head>
+<body>
+
+<div id="lobbyOverlay" class="modal" style="display: flex;">
+  <div class="modal-content" style="grid-template-columns: 1fr; text-align: center; padding: 40px;">
+    <h1 class="comic-title" style="font-size: 3.6rem;">🚧 מסלול המכשולים הבירוקרטי</h1>
+    <p style="color:#a68a6d; font-size:1.2rem; margin-top:-10px;">מכוני בקרה | מורשה להיתר</p>
+    <div style="background:white; padding:15px; display:inline-block; border-radius:20px; margin:20px; border:4px solid var(--ink);"><img id="autoQR" width="220" height="220"></div>
+    <div id="lobbyList" style="display:flex; flex-wrap:wrap; justify-content:center; gap:15px; margin-bottom: 20px;"></div>
+    <button onclick="startGame()" style="padding:25px 80px; background:var(--green); border:3px solid var(--ink); border-radius:16px; font-weight:900; cursor:pointer; font-size: 2rem; color:white;">🚀 התחל משחק</button>
+  </div>
+</div>
+
+<div class="main-layout">
+  <div class="sidebar">
+    <div id="dice" style="font-size: 5.5rem; text-align: center; margin-bottom: 20px;">🎲</div>
+    <h3 class="comic-title" style="font-size:1.3rem; border-bottom: 3px solid var(--ink); padding-bottom: 10px;">דירוג קבוצות</h3>
+    <div id="playerStats" style="flex:1; overflow-y:auto;"></div>
+    <button onclick="resetFullGame()" style="background:none; border:none; color:#d62828; cursor:pointer; font-weight:bold; margin-top: auto; padding:10px;">איפוס עמוק 🛑</button>
+  </div>
+  <div class="board" id="board"></div>
+</div>
+
+<div id="infoModal" class="modal">
+  <div class="timer-bar" id="timerBar"></div>
+  <div class="modal-content">
+    <div class="metro-line">
+        <div class="metro-station" id="stg1">1. הרקע ומורשה להיתר</div><div class="metro-station" id="stg2">2. בקרת תכן</div>
+        <div class="metro-station" id="stg3">3. קבלת ההיתר</div><div class="metro-station" id="stg4">4. בקרת ביצוע</div>
+        <div class="metro-station" id="stg5">5. סיום ותעודת גמר</div>
+    </div>
+    <div id="modalImg" style="background-size:cover; background-position:center;"></div>
+    <div id="modalInfo" style="padding:45px; text-align:right; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="finishOverlay" class="modal">
+    <div class="modal-content" style="grid-template-columns: 1fr; text-align: center; padding: 50px;">
+        <h1 class="comic-title" style="font-size: 3.6rem;">🎉 הגעתם לתעודת הגמר!</h1>
+        <div id="finalRanking" style="font-size: 2rem; margin-top: 30px;"></div>
+        <button onclick="resetFullGame()" style="margin-top: 50px; padding: 20px 60px; background: var(--blue); border:3px solid var(--ink); border-radius:16px; font-weight:900; cursor:pointer; color:white;">משחק חדש 🔄</button>
+    </div>
+</div>
+
+<script>
+  const config = { apiKey: "AIzaSyCgGQQXcDmQw9vbtVXN5F0sQxgDas71Fbc", databaseURL: "https://erez-bikoret-game-default-rtdb.firebaseio.com", projectId: "erez-bikoret-game" };
+  firebase.initializeApp(config);
+  const db = firebase.database();
+
+  let currentGame = { state: 'lobby', turn: 0, turnOrder: [] };
+  let currentPlayers = {};
+
+  function charImg(icon, size) {
+    return `<img src="images/characters/${icon}.png" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;">`;
+  }
+
+  function setupQR() {
+    let url = window.location.href.split(/[?#]/)[0];
+    if (url.endsWith('index.html')) {
+        url = url.replace('index.html', 'play.html');
+    } else {
+        url = url.endsWith('/') ? url + 'play.html' : url + '/play.html';
+    }
+    document.getElementById('autoQR').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}`;
+    console.log("Barcode URL for Students:", url);
+  }
+
+  function initBoard() {
+    if(!window.gameData) return setTimeout(initBoard, 400);
+    const b = document.getElementById('board'); b.innerHTML = '';
+    for(let i=1; i<=50; i++) {
+      const cell = document.createElement('div'); cell.className = 'cell'; cell.id = `cell-${i}`;
+      cell.style.backgroundImage = `url('images/cells/${i}.jpeg')`;
+      cell.innerHTML = `<div style="position:absolute; top:3px; right:5px; font-size:0.8rem; font-weight:900; text-shadow:0 0 3px black;">${i}</div><div class="cell-title">${window.gameData.cells[i]?.title || ""}</div>`;
+      b.appendChild(cell);
+    }
+  }
+
+  function resetFullGame() {
+    if(confirm("לאפס הכל?")) db.ref('/').set({ game: { state: 'lobby', turn: 0 }, players: {} }).then(() => location.reload());
+  }
+
+  function startGame() {
+    db.ref('players').once('value', snap => {
+        const ps = snap.val() || {}; const ids = Object.keys(ps);
+        if(ids.length === 0) return alert("אף קבוצה לא הצטרפה!");
+        for(let i=ids.length-1; i>0; i--){ const j=Math.floor(Math.random()*(i+1)); [ids[i], ids[j]]=[ids[j], ids[i]]; }
+        db.ref('game').set({ state: 'playing', turn: 0, turnOrder: ids, activeCell: null });
+    });
+  }
+
+  function listen() {
+    db.ref('game').on('value', snap => {
+      const g = snap.val() || { state: 'lobby', turn: 0, turnOrder: [] };
+      currentGame = g;
+      document.getElementById('lobbyOverlay').style.display = (g.state === 'lobby') ? 'flex' : 'none';
+      document.getElementById('finishOverlay').style.display = (g.state === 'finished') ? 'flex' : 'none';
+      if(g.activeCell) showModal(g); else { document.getElementById('infoModal').style.display = 'none'; clearInterval(window.quizTimer); }
+      if(g.selection !== null && g.selection !== undefined) clearInterval(window.quizTimer);
+      if(g.lastRoll) document.getElementById('dice').innerText = ["🎲","⚀","⚁","⚂","⚃","⚄","⚅"][g.lastRoll] || "🎲";
+      if(g.state === 'wheeling' && g.wheelRotation) {
+          const w = document.getElementById('wheelSVG'); if(w) w.style.transform = `rotate(${g.wheelRotation}deg)`;
+      }
+      renderPlayers();
+    });
+
+    db.ref('players').on('value', snap => {
+      currentPlayers = snap.val() || {};
+      renderPlayers();
+    });
+  }
+
+  function renderPlayers() {
+      const ps = currentPlayers; const stats = document.getElementById('playerStats'); const lobby = document.getElementById('lobbyList');
+      stats.innerHTML = ''; lobby.innerHTML = ''; document.querySelectorAll('.pawn').forEach(p => p.remove());
+      const sortedIds = Object.keys(ps).sort((a,b) => (ps[b].score||0) - (ps[a].score||0));
+      const inGame = currentGame.state !== 'lobby' && currentGame.state !== 'finished';
+      const activeId = (inGame && currentGame.turnOrder) ? currentGame.turnOrder[currentGame.turn] : null;
+
+      sortedIds.forEach(id => {
+        const p = ps[id];
+        const finished = p.pos >= 49;
+        const isTurn = id === activeId;
+        lobby.innerHTML += `<div style="padding:10px 20px; background:${p.color}44; border:2px solid ${p.color}; border-radius:12px;">${charImg(p.icon,28)} ${p.name}</div>`;
+        stats.innerHTML += `<div style="padding:12px; border-right:5px solid ${p.color}; background:${isTurn ? 'rgba(255,194,51,0.15)' : 'rgba(255,255,255,0.05)'}; margin-bottom:10px; border-radius:10px; ${isTurn ? 'animation: turnPulse 1.5s infinite;' : ''}">
+            <b>${p.name}</b> ${isTurn ? '<span style="color:var(--gold);"> 🎯 תורם עכשיו!</span>' : ''}<br>
+            <span>${p.score || 0} נק'</span> | ${finished ? '🏁 סיים/ה את המסלול' : (p.pos < 0 ? 'בלובי' : 'משבצת ' + (p.pos+1))}
+        </div>`;
+        if(p.pos >= 0) {
+            const pawn = document.createElement('div'); pawn.className = 'pawn'; pawn.innerHTML = charImg(p.icon, 40); pawn.style.background = p.color;
+            if(isTurn) pawn.style.boxShadow = '0 0 0 4px var(--gold), 0 5px 15px black';
+            document.body.appendChild(pawn); const cell = document.getElementById(`cell-${p.pos+1}`);
+            if(cell) { const r = cell.getBoundingClientRect(); pawn.style.top = (r.top+5)+'px'; pawn.style.left = (r.left+5)+'px'; }
+        }
+      });
+
+      const order = currentGame.turnOrder || [];
+      if(order.length > 0 && order.every(id => ps[id] && ps[id].pos >= 49)) {
+          db.ref('game').update({ state: 'finished' });
+          document.getElementById('finalRanking').innerHTML = sortedIds.map((id, i) => `<div style="margin:10px 0;">#${i+1} ${charImg(ps[id].icon,32)} ${ps[id].name} - ${ps[id].score} נקודות</div>`).join('');
+      }
+  }
+
+  function showModal(g) {
+    const data = window.gameData.cells[g.activeCell]; if(!data) return;
+    const stage = Math.ceil(g.activeCell / 10);
+    document.getElementById('infoModal').style.display = 'flex';
+    document.getElementById('modalImg').style.backgroundImage = `url('images/cells/${g.activeCell}.jpeg')`;
+    document.querySelectorAll('.metro-station').forEach((s, i) => s.classList.toggle('active', (i+1) === stage));
+
+    if((data.type === 'quiz') && !g.startTime) { db.ref('game').update({ startTime: Date.now() }); startTimer(); }
+
+    let html = `<h2 style="color:var(--gold); margin:0;">משבצת ${g.activeCell}</h2><h1>${data.title}</h1><p style="font-size:1.6rem; line-height:1.6;">${data.info}</p>`;
+    if(data.type === 'quiz') {
+      html += `<div style="margin-top:25px; background:rgba(255,255,255,0.03); padding:20px; border-radius:20px;"><h3>${data.question}</h3><div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">`;
+      const labels = ['א', 'ב', 'ג', 'ד'];
+      data.options.forEach((opt, i) => {
+        let cls = ""; if(g.selection !== null && g.selection !== undefined) { if(i === data.correct) cls = "correct"; else if(i === g.selection) cls = "wrong"; }
+        html += `<div class="opt-btn ${cls}">${labels[i]}. ${opt}</div>`;
+      });
+      html += `</div>${(g.selection !== null && g.selection !== undefined) ? `<p style="color:var(--gold); margin-top:20px; font-size:1.4rem;"><b>הסבר לימודי:</b> ${data.explanation}</p>` : ''}</div>`;
+    } else if(data.type === 'wheel') {
+        html += `<div class="wheel-box"><div class="wheel-arrow"></div><svg id="wheelSVG" viewBox="0 0 100 100">
+                <path d="M50 50 L50 0 A50 50 0 0 1 93.3 25 Z" fill="var(--green)"/>
+                <path d="M50 50 L93.3 25 A50 50 0 0 1 93.3 75 Z" fill="var(--yellow)"/>
+                <path d="M50 50 L93.3 75 A50 50 0 0 1 50 100 Z" fill="var(--red)"/>
+                <path d="M50 50 L50 100 A50 50 0 0 1 6.7 75 Z" fill="var(--green)"/>
+                <path d="M50 50 L6.7 75 A50 50 0 0 1 6.7 25 Z" fill="var(--yellow)"/>
+                <path d="M50 50 L6.7 25 A50 50 0 0 1 50 0 Z" fill="var(--red)"/>
+            </svg></div>`;
+        if(g.wheelResult) html += `<h1 style="color:var(--gold); font-size:3rem; text-align:center;">${g.wheelResult}</h1>`;
+    }
+    html += `<button onclick="closeTurn()" style="margin-top:30px; width:100%; padding:25px; background:var(--green); border:3px solid var(--ink); border-radius:16px; font-weight:900; cursor:pointer; font-size:1.5rem; color:white;">סיום תור ➔</button>`;
+    document.getElementById('modalInfo').innerHTML = html;
+  }
+
+  function startTimer() {
+    let t = 20; window.quizTimer = setInterval(() => {
+        t -= 0.1; document.getElementById('timerBar').style.width = (t/20*100) + "%";
+        if(t <= 0) { clearInterval(window.quizTimer); db.ref('game').update({ selection: -1 }); }
+    }, 100);
+  }
+
+  function closeTurn() {
+    db.ref('game').once('value', s => {
+      const g = s.val();
+      db.ref('players').once('value', ps => {
+        const players = ps.val() || {}; const order = g.turnOrder || [];
+        let nextTurn = (g.turn + 1) % order.length;
+        for(let i = 0; i < order.length; i++) {
+          const p = players[order[nextTurn]];
+          if(!p || p.pos < 49) break;
+          nextTurn = (nextTurn + 1) % order.length;
+        }
+        db.ref('game').update({ activeCell: null, selection: null, startTime: null, wheelResult: null, wheelRotation: 0, turn: nextTurn });
+      });
+    });
+  }
+
+  window.onload = () => { setupQR(); initBoard(); listen(); };
+</script>
+</body>
+</html>
